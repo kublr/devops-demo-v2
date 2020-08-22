@@ -1,0 +1,202 @@
+kind: Cluster
+metadata:
+  name: devops-demo-us-east-1
+  space: devops
+spec:
+  master:
+    locations:
+      -
+        aws:
+          instanceType: t3.medium
+          overrideImageId: ami-02354e95b39ca8dec
+          imageRootDeviceName: /dev/xvda
+          launchTemplateDataCloudFormationExtras:
+            InstanceMarketOptions:
+              MarketType: spot
+              SpotOptions:
+                SpotInstanceType: one-time
+          instanceMonitoring: false
+          rootVolume:
+            size: 40
+        locationRef: aws1
+    minNodes: 3
+    kublrVariant: aws-amazon-linux-2
+    kublrAgentConfig:
+      kublr:
+        psp:
+          default_clusterrole: 'psp:privileged'
+  kublrAgentTgzUrl: 'https://nexus.ecp.eastbanctech.com/repository/gobinaries/kublr/1.18.6-4/kublr-1.18.6-4-linux.tar.gz'
+  locations:
+    -
+      name: aws1
+      aws:
+        region: us-east-1
+        enableTerminationProtection: false
+        awsApiAccessSecretRef: ws
+        availabilityZones:
+          - us-east-1a
+          - us-east-1c
+          - us-east-1f
+        resourcesCloudFormationExtras:
+          DevOpsDemoEFS:
+            Type: AWS::EFS::FileSystem
+            Properties: {}
+          DevOpsDemoEFSMT0:
+            Type: AWS::EFS::MountTarget
+            Properties: 
+              FileSystemId: { Ref: DevOpsDemoEFS }
+              SecurityGroups: [ { "Fn::GetAtt": [ NewVpc, DefaultSecurityGroup ] } ]
+              SubnetId: { Ref: SubnetNodePublic0 }
+          DevOpsDemoEFSMT2:
+            Type: AWS::EFS::MountTarget
+            Properties:
+              FileSystemId: { Ref: DevOpsDemoEFS }
+              SecurityGroups: [ { "Fn::GetAtt": [ NewVpc, DefaultSecurityGroup ] } ]
+              SubnetId: { Ref: SubnetNodePublic2 }
+          DevOpsDemoEFSMT5:
+            Type: AWS::EFS::MountTarget
+            Properties:
+              FileSystemId: { Ref: DevOpsDemoEFS }
+              SecurityGroups: [ { "Fn::GetAtt": [ NewVpc, DefaultSecurityGroup ] } ]
+              SubnetId: { Ref: SubnetNodePublic5 }
+          DevOpsDemoPrivateHostedZone:
+            Type: AWS::Route53::HostedZone
+            Properties:
+              Name: devops-demo.kublr.local
+              VPCs: 
+                - VPCId: { Ref: NewVpc }
+                  VPCRegion: { Ref: 'AWS::Region' }
+          DevOpsDemoPrivateHostedZoneRecordSetEFS:
+            Type: AWS::Route53::RecordSet
+            Properties:
+              HostedZoneId: { Ref: DevOpsDemoPrivateHostedZone }
+              Name: efs.devops-demo.kublr.local
+              ResourceRecords:
+                - { "Fn::Sub": [ '${EFS}.efs.${AWS::Region}.amazonaws.com', { EFS: { Ref: DevOpsDemoEFS } } ] }
+              TTL: "300"
+              Type: CNAME
+  network:
+    apiServerSecurePort: 443
+  nodes:
+    -
+      name: group1
+      locations:
+        -
+          locationRef: aws1
+          aws:
+            instanceType: m5a.large
+            overrideImageId: ami-02354e95b39ca8dec
+            imageRootDeviceName: /dev/xvda
+            launchTemplateDataCloudFormationExtras:
+              InstanceMarketOptions:
+                MarketType: spot
+                SpotOptions:
+                  SpotInstanceType: one-time
+            instanceMonitoring: false
+            rootVolume:
+              size: 40
+      kublrVariant: aws-amazon-linux-2
+      autoscaling: false
+      minNodes: 3
+  features:
+    system:
+      values:
+        storageClass:
+          defaultClass: false
+    monitoring:
+      enabled: true
+      selfHosted:
+        alertmanager:
+          enabled: true
+        prometheus:
+          persistent: true
+          size: 32G
+        grafana:
+          persistent: true
+          size: 10G
+          enabled: true
+        enabled: true
+      values:
+        prometheus:
+          persistence:
+            storageClass: nfs-client
+        grafana:
+          persistence:
+            storageClass: nfs-client
+    ingress:
+      ingressControllers:
+        -
+          nginx:
+            enabled: true
+            acme:
+              enabled: true
+              apiUrl: 'https://acme-v02.api.letsencrypt.org/directory'
+              email: example-email+devopsdemo@gmail.com
+    kublrOperator:
+      enabled: true
+  packages:
+    nfs-client-provisioner:
+      helmVersion: '3.2.1'
+      namespace: kube-system
+      releaseName: nfs-client-provisioner
+      chart:
+        name: nfs-client-provisioner
+        repoUrl: https://kubernetes-charts.storage.googleapis.com
+        version: '1.2.9'
+      values:
+        nfs:
+          server: efs.devops-demo.kublr.local
+          path: /
+        storageClass:
+          defaultClass: true
+    sonatype-nexus:
+      chart:
+        name: sonatype-nexus
+        repoUrl: 'https://github.com/Oteemo/charts/releases/download/sonatype-nexus-2.6.1'
+        version: 2.6.1
+      values:
+        nexusProxy:
+          env:
+            nexusDockerHost: cr.devops-demo-us-east-1.workshop.kublr.com
+            nexusHttpHost: nexus.devops-demo-us-east-1.workshop.kublr.com
+        ingress:
+          enabled: true
+          annotations:
+            kubernetes.io/tls-acme: "true"
+        persistence:
+          storageClass: nfs-client
+        nexusBackup:
+          persistence:
+            enabled: false
+        resources:
+          requests:
+            cpu: 250m
+            memory: 2Gi
+      releaseName: sonatype-nexus
+      namespace: devops
+      helmVersion: 3.2.1
+    jenkins:
+      chart:
+        name: jenkins
+        repoUrl: 'https://kubernetes-charts.storage.googleapis.com'
+        version: 2.5.2
+      values:
+        persistence:
+          storageClass: nfs-client
+          accessMode: ReadWriteMany
+        master:
+          javaOpts: '-Dorg.jenkinsci.plugins.durabletask.BourneShellScript.LAUNCH_DIAGNOSTICS=true'
+          ingress:
+            enabled: true
+            apiVersion: networking.k8s.io/v1beta1
+            annotations:
+              kubernetes.io/ingress.class: nginx
+              kubernetes.io/tls-acme: "true"
+            hostName: jenkins.devops-demo-us-east-1.workshop.kublr.com
+            tls:
+              - secretName: jenkins.devops-demo-us-east-1.workshop.kublr.com
+                hosts:
+                  - jenkins.devops-demo-us-east-1.workshop.kublr.com
+      releaseName: jenkins
+      namespace: devops
+      helmVersion: 3.2.1

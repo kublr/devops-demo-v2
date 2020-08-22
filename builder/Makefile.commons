@@ -1,81 +1,50 @@
-OS := $(shell uname)
-BUILD_DIR=./target
-BRANCH?=$(shell git branch | grep \* | cut -d ' ' -f2)
-UNIQUE_STRING_NOT_MATCH_BRANCH_NAME=UNIQUE_STRING_NOT_MATCH_BRANCH_NAME
+RELEASE_BRANCH_MATCH?=master release%
+
+BUILD_DIR:=./target
+
+COMPONENT_VERSION?=0.0.0
 BUILD_NUMBER?=0
 
+# GIT_BRANCH is the git branch name, "detached", or "nogit"
+GIT_BRANCH:=$(or $(shell git rev-parse --abbrev-ref HEAD || echo nogit),detached)
 
-#TAG for master
-0.1.2
-${COMPONENT_VERSION}
+# GIT_BRANCH_ID is an identifier based on the branch name
+GIT_BRANCH_ID:=$(shell echo '$(GIT_BRANCH)' | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')
 
-#TAG for non-master with build number
-0.1.2-featuref1.34.2abcdef3.dirty
-${COMPONENT_VERSION}-${branch}.${BUILD_NUMBER}.${git-hash}[.dirty]
+# GIT_HASH is 8 char git hash, "nohash", or "nogit"
+GIT_HASH:=$(or $(shell git rev-parse --short=8 HEAD || echo nogit),nohash)
 
-#TAG for non-master without build number
-0.1.2-featuref1.0.2abcdef3.dirty
-${COMPONENT_VERSION}-${branch}.0.${git-hash}[.dirty]
+# GIT_STATUS is one of "nogit", "clean", "dirty"
+GIT_STATUS:=$(shell git status -s || echo nogit)
+ifneq ($(GIT_STATUS),nogit)
+GIT_STATUS:=$(if $(GIT_STATUS),dirty,clean)
+endif
 
-#TAG for non-git
-0.1.2-featuref1.2abcdef3.manual.dirty
-${COMPONENT_VERSION}-${branch}.${git-hash}.manual[.dirty]
+# TAG is $(COMPONENT_VERSION) for release branches, or
+#        $(COMPONENT_VERSION)-$(GIT_BRANCH_ID).$(BUILD_NUMBER).$(GIT_HASH).$(GIT_STATUS) for non-release brances
+TAG:=$(strip $(if $(filter $(RELEASE_BRANCH_MATCH),$(GIT_BRANCH)),\
+  $(COMPONENT_VERSION),\
+  $(COMPONENT_VERSION)-$(GIT_BRANCH_ID).$(BUILD_NUMBER).$(GIT_HASH).$(GIT_STATUS) \
+))
 
+tag:
+	@mkdir -p $(BUILD_DIR)
+	@../builder/tag.sh > $(BUILD_DIR)/tag.sh
 
-##############################
-# Generate unique brunch tag for build
-.PHONY: init-tag
-init-tag:
-	@echo --------- init-tag $(VERSION)---------
-	$(eval PROD_BRANCH_MATCH = "$(shell echo ${BRANCH} | sed -e 's/$(PROD_REPO_BRANCH)/$(UNIQUE_STRING_NOT_MATCH_BRANCH_NAME)/g')")
-	$(eval GIT_BRANCH_NAME = $(call gitBranchName,${BRANCH}))
-	$(if $(findstring $(UNIQUE_STRING_NOT_MATCH_BRANCH_NAME), $(PROD_BRANCH_MATCH)), \
-        $(eval TAG=${COMPONENT_VERSION}), \
-        $(eval TAG=${COMPONENT_VERSION}-$(GIT_BRANCH_NAME).$(shell git rev-parse --short HEAD).${BUILD_NUMBER}) \
-    )
-
-
-# for testing master-branches only !!!
-#ifdef BUILD_NUMBER
-#	$(eval TAG=$(TAG)-${BUILD_NUMBER})
-#else
-#
-#endif
+# Show variables
+show:
 	@echo "#############################################"
-	@echo New tag generated: $(TAG)
+	@echo "RELEASE_BRANCH_MATCH: $(RELEASE_BRANCH_MATCH)"
+	@echo "BUILD_DIR: $(BUILD_DIR)"
+	@echo "COMPONENT_VERSION: $(COMPONENT_VERSION)"
+	@echo "BUILD_NUMBER: $(BUILD_NUMBER)"
+	@echo "GIT_BRANCH: $(GIT_BRANCH)"
+	@echo "GIT_BRANCH_ID: $(GIT_BRANCH_ID)"
+	@echo "GIT_HASH: $(GIT_HASH)"
+	@echo "GIT_STATUS: $(GIT_STATUS)"
+	@echo "TAG: $(TAG)"
 	@echo "#############################################"
-	$(eval DOCKER_MAIN_VERSION=${TAG})
-
-#ifndef VERSION
-#	$(eval PROD_BRANCH_MATCH = "$(shell echo ${BRANCH} | sed -e 's/$(PROD_REPO_BRANCH)/$(UNIQUE_STRING_NOT_MATCH_BRANCH_NAME)/g')")
-#	#$(eval GIT_BRANCH_NAME = $(subst feature,f,$(BRANCH)))
-#	#$(eval GIT_BRANCH_NAME = $(subst /,-,$(GIT_BRANCH_NAME)))
-#	#$(eval GIT_BRANCH_NAME = $(subst _,-,$(GIT_BRANCH_NAME)))
-#	#$(eval GIT_BRANCH_NAME = $(shell echo $(GIT_BRANCH_NAME) | tr A-Z a-z))
-#	echo VERSION
-#	$(eval GIT_BRANCH_NAME = $(shell echo $(BRANCH) | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]' ))
-#	echo $(GIT_BRANCH_NAME)
-#	TAG=${COMPONENT_VERSION}-$(GIT_BRANCH_NAME).$(shell git rev-parse --short HEAD)))
-#ifndef TAG
-#	echo TAG
-#	$(if $(findstring $(UNIQUE_STRING_NOT_MATCH_BRANCH_NAME), $(PROD_BRANCH_MATCH)),$(eval TAG= ${COMPONENT_VERSION}.$(shell git rev-parse --short HEAD)),$(eval TAG=${COMPONENT_VERSION}-$(GIT_BRANCH_NAME).$(shell git rev-parse --short HEAD)))
-#else
-#    echo NOT TAG
-#	$(if $(findstring $(UNIQUE_STRING_NOT_MATCH_BRANCH_NAME), $(PROD_BRANCH_MATCH)),$(eval TAG=${COMPONENT_VERSION}.$(TAG)),$(eval TAG=${COMPONENT_VERSION}-$(GIT_BRANCH_NAME).$(TAG)))
-#endif
-#else
-#	echo NOT VERSION
-#	$(eval TAG=$(VERSION))
-#endif
-#	echo END
-#	$(eval TAG = $(shell echo ${TAG} | cut -b 1-64 ))
-#	@echo $(TAG)
-#	$(eval DOCKER_MAIN_VERSION=${TAG})
-
-
-define gitBranchName
-	$(shell echo $(1) | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]' )
-endef
+.PHONY: show
 
 define helmSedReplacePattern
 	-e "s/{{COMPONENT_NAME}}/${COMPONENT_NAME}/g" \
