@@ -105,6 +105,11 @@ spec:
               - secretName: tls-jenkins.devops-demo-eastus.workshop.kublr.com
                 hosts:
                   - jenkins.devops-demo-eastus.workshop.kublr.com
+          installPlugins:
+            - 'kubernetes:1.27.6'
+            - 'workflow-aggregator:2.6'
+            - 'git:4.5.2'
+            - 'configuration-as-code:1.47'
     sonatype-nexus:
       helmVersion: '3.4.0'
       namespace: devops
