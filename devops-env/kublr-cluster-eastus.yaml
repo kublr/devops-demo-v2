@@ -1,0 +1,152 @@
+kind: Cluster
+metadata:
+  name: devops-demo-eastus
+  space: devops
+spec:
+  kublrAgentTgzUrl: 'https://repo.kublr.com/repository/gobinaries/kublr/1.19.7-26/kublr-1.19.7-26-linux.tar.gz'
+  locations:
+    - name: azure1
+      azure:
+        region: eastus
+        azureApiAccessSecretRef: azure
+  network:
+    apiServerSecurePort: 443
+  master:
+    locations:
+      - azure:
+          instanceType: Standard_A4_v2
+          osDisk:
+            imagePublisher: Canonical
+            imageOffer: UbuntuServer
+            imageVersion: 18.04-LTS
+            type: image
+            diskSizeGb: 40
+          sshKeySecretRef: ssh-pub
+        locationRef: azure1
+    minNodes: 3
+    kublrVariant: ubuntu-18-04
+    kublrAgentConfig:
+      kublr:
+        psp:
+          default_clusterrole: 'psp:privileged'
+  nodes:
+    - name: group1
+      locations:
+        - locationRef: azure1
+          azure:
+            instanceType: Standard_A8_v2
+            osDisk:
+              imagePublisher: Canonical
+              imageOffer: UbuntuServer
+              imageVersion: 18.04-LTS
+              type: image
+              diskSizeGb: 40
+            sshKeySecretRef: ssh-pub
+            groupType: VirtualMachineScaleSet
+      minNodes: 3
+      stateful: false
+  features:
+    system:
+      chart:
+        version: 1.20.0-19
+    monitoring:
+      chart:
+        version: 1.20.0-22
+      enabled: true
+      selfHosted:
+        alertmanager:
+          enabled: true
+          persistent: true
+          size: 2G
+        prometheus:
+          persistent: true
+          size: 32G
+        grafana:
+          persistent: true
+          size: 10G
+          enabled: true
+        enabled: true
+    ingress:
+      ingressControllers:
+        - nginx:
+            enabled: true
+            acme:
+              enabled: true
+              apiUrl: 'https://acme-v02.api.letsencrypt.org/directory'
+              email: example-email+devopsdemo@gmail.com
+      chart:
+        version: 1.20.0-18
+    kublrOperator:
+      enabled: true
+      chart:
+        version: 1.20.0-20
+  packages:
+    jenkins:
+      helmVersion: '3.4.0'
+      namespace: devops
+      releaseName: jenkins
+      chart:
+        name: jenkins
+        url: 'https://github.com/jenkinsci/helm-charts/releases/download/jenkins-3.1.8/jenkins-3.1.8.tgz'
+      values:
+        # persistence:
+        #   storageClass: nfs-client
+        #   accessMode: ReadWriteMany
+        controller:
+          javaOpts: '-Dorg.jenkinsci.plugins.durabletask.BourneShellScript.LAUNCH_DIAGNOSTICS=true'
+          ingress:
+            enabled: true
+            apiVersion: networking.k8s.io/v1
+            annotations:
+              kubernetes.io/ingress.class: nginx
+              kubernetes.io/tls-acme: "true"
+            hostName: jenkins.devops-demo-eastus.workshop.kublr.com
+            tls:
+              - secretName: tls-jenkins.devops-demo-eastus.workshop.kublr.com
+                hosts:
+                  - jenkins.devops-demo-eastus.workshop.kublr.com
+    sonatype-nexus:
+      helmVersion: '3.4.0'
+      namespace: devops
+      releaseName: sonatype-nexus
+      chart:
+        name: sonatype-nexus
+        url: https://github.com/Oteemo/charts/releases/download/sonatype-nexus-4.2.0/sonatype-nexus-4.2.0.tgz
+      values:
+        nexus:
+          imageTag: 3.29.2
+        nexusProxy:
+          env:
+            nexusDockerHost: cr.devops-demo-eastus.workshop.kublr.com
+            nexusHttpHost: nexus.devops-demo-eastus.workshop.kublr.com
+        ingress:
+          enabled: true
+          annotations:
+            kubernetes.io/tls-acme: "true"
+          tls:
+            secretName: tls-nexus.devops-demo-eastus.workshop.kublr.com
+        ingressDocker:
+          enabled: true
+          annotations:
+            kubernetes.io/tls-acme: "true"
+          tls:
+            secretName: tls-cr.devops-demo-eastus.workshop.kublr.com
+        statefulset:
+          enabled: true
+        # deploymentStrategy:
+        #   rollingUpdate:
+        #     maxUnavailable: 100%
+        #     maxSurge: 100%
+        # persistence:
+        #   storageClass: nfs-client
+        nexusCloudiam:
+          enabled: false
+          persistence:
+            enabled: false
+        nexusBackup:
+          persistence:
+            enabled: false
+        resources:
+          requests:
+            cpu: 250m
+            memory: 2Gi

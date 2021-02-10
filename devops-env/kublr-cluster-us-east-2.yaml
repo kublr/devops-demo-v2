@@ -3,14 +3,13 @@ metadata:
   name: devops-demo-us-east-2
   space: devops
 spec:
-  kublrAgentTgzUrl: 'https://repo.kublr.com/repository/gobinaries/kublr/1.18.6-7/kublr-1.18.6-7-linux.tar.gz'
+  kublrAgentTgzUrl: 'https://repo.kublr.com/repository/gobinaries/kublr/1.19.7-26/kublr-1.19.7-26-linux.tar.gz'
   locations:
-    -
-      name: aws1
+    - name: aws1
       aws:
         region: us-east-2
         enableTerminationProtection: false
-        awsApiAccessSecretRef: ws
+        awsApiAccessSecretRef: aws
         availabilityZones:
           - us-east-2a
           - us-east-2b
@@ -57,9 +56,12 @@ spec:
     apiServerSecurePort: 443
   master:
     locations:
-      -
-        aws:
+      - aws:
           instanceType: t3.medium
+          availabilityZones:
+            - us-east-2a
+            - us-east-2b
+            - us-east-2c
           overrideImageId: ami-07c8bc5c1ce9598c3
           imageRootDeviceName: /dev/xvda
           groupType: asg-mip
@@ -86,13 +88,15 @@ spec:
         psp:
           default_clusterrole: 'psp:privileged'
   nodes:
-    -
-      name: group1
+    - name: group1
       locations:
-        -
-          locationRef: aws1
+        - locationRef: aws1
           aws:
             instanceType: m5a.large
+            availabilityZones:
+              - us-east-2a
+              - us-east-2b
+              - us-east-2c
             overrideImageId: ami-07c8bc5c1ce9598c3
             imageRootDeviceName: /dev/xvda
             groupType: asg-mip
@@ -119,16 +123,23 @@ spec:
       kublrVariant: aws-amazon-linux-2
       autoscaling: false
       minNodes: 3
+      stateful: false
   features:
     system:
+      chart:
+        version: 1.20.0-19
       values:
         storageClass:
           defaultClass: false
     monitoring:
+      chart:
+        version: 1.20.0-22
       enabled: true
       selfHosted:
         alertmanager:
           enabled: true
+          persistent: true
+          size: 2G
         prometheus:
           persistent: true
           size: 32G
@@ -144,38 +155,71 @@ spec:
         grafana:
           persistence:
             storageClass: nfs-client
+        alertmanager:
+          persistence:
+            storageClass: nfs-client
     ingress:
       ingressControllers:
-        -
-          nginx:
+        - nginx:
             enabled: true
             acme:
               enabled: true
               apiUrl: 'https://acme-v02.api.letsencrypt.org/directory'
               email: example-email+devopsdemo@gmail.com
+      chart:
+        version: 1.20.0-18
     kublrOperator:
       enabled: true
-  packages:
-    nfs-client-provisioner:
-      helmVersion: '3.2.1'
-      namespace: kube-system
-      releaseName: nfs-client-provisioner
       chart:
-        name: nfs-client-provisioner
-        repoUrl: https://kubernetes-charts.storage.googleapis.com
-        version: '1.2.9'
+        version: 1.20.0-20
+  packages:
+    nfs-subdir-external-provisioner:
+      helmVersion: '3.4.0'
+      namespace: kube-system
+      releaseName: nfs-subdir-external-provisioner
+      chart:
+        name: nfs-subdir-external-provisioner
+        url: https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner/releases/download/nfs-subdir-external-provisioner-3.0.0/nfs-subdir-external-provisioner-3.0.0.tgz
       values:
         nfs:
           server: efs.devops-demo.kublr.local
           path: /
         storageClass:
           defaultClass: true
+    jenkins:
+      helmVersion: '3.4.0'
+      namespace: devops
+      releaseName: jenkins
+      chart:
+        name: jenkins
+        url: 'https://github.com/jenkinsci/helm-charts/releases/download/jenkins-3.1.8/jenkins-3.1.8.tgz'
+      values:
+        persistence:
+          storageClass: nfs-client
+          accessMode: ReadWriteMany
+        controller:
+          javaOpts: '-Dorg.jenkinsci.plugins.durabletask.BourneShellScript.LAUNCH_DIAGNOSTICS=true'
+          ingress:
+            enabled: true
+            apiVersion: networking.k8s.io/v1
+            annotations:
+              kubernetes.io/ingress.class: nginx
+              kubernetes.io/tls-acme: "true"
+            hostName: jenkins.devops-demo-us-east-2.workshop.kublr.com
+            tls:
+              - secretName: tls-jenkins.devops-demo-us-east-2.workshop.kublr.com
+                hosts:
+                  - jenkins.devops-demo-us-east-2.workshop.kublr.com
     sonatype-nexus:
+      helmVersion: '3.4.0'
+      namespace: devops
+      releaseName: sonatype-nexus
       chart:
         name: sonatype-nexus
-        repoUrl: 'https://github.com/Oteemo/charts/releases/download/sonatype-nexus-2.6.1'
-        version: 2.6.1
+        url: https://github.com/Oteemo/charts/releases/download/sonatype-nexus-4.2.0/sonatype-nexus-4.2.0.tgz
       values:
+        nexus:
+          imageTag: 3.29.2
         nexusProxy:
           env:
             nexusDockerHost: cr.devops-demo-us-east-2.workshop.kublr.com
@@ -184,8 +228,26 @@ spec:
           enabled: true
           annotations:
             kubernetes.io/tls-acme: "true"
+          tls:
+            secretName: tls-nexus.devops-demo-us-east-2.workshop.kublr.com
+        ingressDocker:
+          enabled: true
+          annotations:
+            kubernetes.io/tls-acme: "true"
+          tls:
+            secretName: tls-cr.devops-demo-us-east-2.workshop.kublr.com
+        statefulset:
+          enabled: true
+        # deploymentStrategy:
+        #   rollingUpdate:
+        #     maxUnavailable: 100%
+        #     maxSurge: 100%
         persistence:
           storageClass: nfs-client
+        nexusCloudiam:
+          enabled: false
+          persistence:
+            enabled: false
         nexusBackup:
           persistence:
             enabled: false
@@ -193,31 +255,3 @@ spec:
           requests:
             cpu: 250m
             memory: 2Gi
-      releaseName: sonatype-nexus
-      namespace: devops
-      helmVersion: 3.2.1
-    jenkins:
-      chart:
-        name: jenkins
-        repoUrl: 'https://kubernetes-charts.storage.googleapis.com'
-        version: 2.5.2
-      values:
-        persistence:
-          storageClass: nfs-client
-          accessMode: ReadWriteMany
-        master:
-          javaOpts: '-Dorg.jenkinsci.plugins.durabletask.BourneShellScript.LAUNCH_DIAGNOSTICS=true'
-          ingress:
-            enabled: true
-            apiVersion: networking.k8s.io/v1beta1
-            annotations:
-              kubernetes.io/ingress.class: nginx
-              kubernetes.io/tls-acme: "true"
-            hostName: jenkins.devops-demo-us-east-2.workshop.kublr.com
-            tls:
-              - secretName: jenkins.devops-demo-us-east-2.workshop.kublr.com
-                hosts:
-                  - jenkins.devops-demo-us-east-2.workshop.kublr.com
-      releaseName: jenkins
-      namespace: devops
-      helmVersion: 3.2.1
