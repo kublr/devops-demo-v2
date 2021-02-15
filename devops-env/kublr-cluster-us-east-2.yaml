@@ -227,7 +227,7 @@ spec:
           imageTag: 3.29.2
         nexusProxy:
           env:
-            nexusDockerHost: cr.devops-demo-us-east-2.workshop.kublr.com
+            nexusDockerHost: registry.devops-demo-us-east-2.workshop.kublr.com
             nexusHttpHost: nexus.devops-demo-us-east-2.workshop.kublr.com
         ingress:
           enabled: true
@@ -240,7 +240,7 @@ spec:
           annotations:
             kubernetes.io/tls-acme: "true"
           tls:
-            secretName: tls-cr.devops-demo-us-east-2.workshop.kublr.com
+            secretName: tls-registry.devops-demo-us-east-2.workshop.kublr.com
         statefulset:
           enabled: true
         # deploymentStrategy:

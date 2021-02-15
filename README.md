@@ -90,6 +90,9 @@ Other possible variation points that you may or may not want to modify or experi
 
 ## 3. Setting up DNS
 
+**NB!** Before configuring DNS restore saved TLS/HTTPS certificates if necessary; see the section
+"[7. Backup and restore Letsencrypt certificates](#7-backup-and-restore-letsencrypt-certificates)" for more details.
+
 As soon as the cluster is started, open the Kubernetes dashboard and check the name or address of the load balancer
 allocated for the cluster's ingress controller, namely the service `kublr-ingress-nginx-ingress-controller` in the
 `kube-system` or use the following CLI console command for that:
@@ -184,20 +187,21 @@ Certain additional setup and configuration is necessary for them to
 
 ### 4.3. Check the docker registry
 
-The registry will be available at the address `cr.devops-demo-us-east-1.workshop.kublr.com`
+The registry will be available at the address `registry.devops-demo-us-east-1.workshop.kublr.com`
 
 You can test that it works by running the following commands:
 
 ```bash
 DOMAIN=devops-demo-us-east-1.workshop.kublr.com
+NPASWD=admin123
 
 docker pull alpine
-docker tag alpine cr.$DOMAIN/alpine/alpine
-docker login      cr.$DOMAIN -u admin -p "$NPASWD"
-docker push       cr.$DOMAIN/alpine/alpine
-docker logout     cr.$DOMAIN
-docker rmi        cr.$DOMAIN/alpine/alpine
-docker pull       cr.$DOMAIN/alpine/alpine
+docker tag alpine registry.$DOMAIN/alpine/alpine
+docker login      registry.$DOMAIN -u admin -p "$NPASWD"
+docker push       registry.$DOMAIN/alpine/alpine
+docker logout     registry.$DOMAIN
+docker rmi        registry.$DOMAIN/alpine/alpine
+docker pull       registry.$DOMAIN/alpine/alpine
 ```
 
 ## 5. Setting up Jenkins
@@ -206,7 +210,7 @@ docker pull       cr.$DOMAIN/alpine/alpine
    account in the `devops` namespace
 
    ```
-   kubectl create clusterrolebinding cluster-admin-devops-jenkins --clusterrole=cluster-admin --serviceaccount=devops:jenkins
+   kubectl create clusterrolebinding cluster-admin:devops:jenkins --clusterrole=cluster-admin --serviceaccount=devops:jenkins
    kubectl create clusterrolebinding cluster-admin:devops:default --clusterrole=cluster-admin --serviceaccount=devops:default
    ```
 
@@ -233,7 +237,7 @@ docker pull       cr.$DOMAIN/alpine/alpine
 
 1. Register pipeline parameters: in 'Manage Jenkins' > 'Manage Credentials' create new records in '(Global)' domain:
    - `docker-registry-cred` of type "username/password" with values `admin` / `admin123`
-   - `docker-registry-address` of type "secret text" with value `cr.devops-demo-us-east-1.workshop.kublr.com`
+   - `docker-registry-address` of type "secret text" with value `registry.devops-demo-us-east-1.workshop.kublr.com`
    - `cluster-domain` of type "secret text" with value `devops-demo-us-east-1.workshop.kublr.com`
 
 1. Create a new multi-branch pipeline project
@@ -301,8 +305,8 @@ docker pull       cr.$DOMAIN/alpine/alpine
    <org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl>
      <scope>GLOBAL</scope>
      <id>docker-registry-address</id>
-     <description>cr.$DOMAIN</description>
-     <secret>cr.$DOMAIN</secret>
+     <description>registry.$DOMAIN</description>
+     <secret>registry.$DOMAIN</secret>
    </org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl>
    EOF
    ```
@@ -370,7 +374,7 @@ docker pull       cr.$DOMAIN/alpine/alpine
    EOF
    ```
 
-## 6. Check automatically deployed spplicstions
+## 6. Check automatically deployed applications
 
 As soon as you save this project, the build process for `main` and `feature/blue` branch (or any other branches
 available in the repository at the time) should start, run and deploy the application to the `main` and
@@ -378,3 +382,29 @@ available in the repository at the time) should start, run and deploy the applic
 
 The applications will be available on individual URLs such as http://simple-api.main.devops-demo-us-east-1.workshop.kublr.com
 (for `main` branch) or http://simple-api.featureblue.devops-demo-us-east-1.workshop.kublr.com (for `feature/blue` branch).
+
+## 7. Backup and restore Letsencrypt certificates
+
+This demo relies on Letsencrypt to issue valid TLS/HTTPS certificates.
+
+Letsencrypt may rate-limit the certificate requests for the same domain name to 5 requests per week. As a result
+the demo may fail if it is re-run from scratch more than 5 times per week.
+
+If this is the case, it is recommended to backup the certificates and keys and restore them instead of re-running
+the demo.
+
+Backup certificates:
+
+```bash
+kubectl get secrets -n devops --field-selector type=kubernetes.io/tls -o yaml > certificates.yaml
+```
+
+It is recommended to cleanup the output certificates backup file removing unnecessary fields from the exported secrets,
+such as `metadata.managedFields`, `metadata.resourceVersion`, `metadata.selfLink`, `metadata.uid`, `metadata.creationTimestamp`.
+
+Importing the backed-up certificates:
+
+```bash
+kubectl apply -f < certificates.yaml
+kubectl -n devops delete --all certificaterequests,certificates,challenges,orders
+```
