@@ -396,15 +396,22 @@ the demo.
 Backup certificates:
 
 ```bash
-kubectl get secrets -n devops --field-selector type=kubernetes.io/tls -o yaml > certificates.yaml
+kubectl get secrets -n devops --field-selector type=kubernetes.io/tls -o json | jq '
+  del(.items[].metadata.managedFields)|
+  del(.items[].metadata.resourceVersion)|
+  del(.items[].metadata.selfLink)|
+  del(.items[].metadata.uid)|
+  del(.items[].metadata.creationTimestamp)|
+  del(.items[].metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"])' > "certificates-${DOMAIN}.json"
 ```
 
 It is recommended to cleanup the output certificates backup file removing unnecessary fields from the exported secrets,
-such as `metadata.managedFields`, `metadata.resourceVersion`, `metadata.selfLink`, `metadata.uid`, `metadata.creationTimestamp`.
+such as `metadata.managedFields`, `metadata.resourceVersion`, `metadata.selfLink`, `metadata.uid`, `metadata.creationTimestamp`
+(it is done with `jq` processing in the script above).
 
 Importing the backed-up certificates:
 
 ```bash
-kubectl apply -f < certificates.yaml
+kubectl apply -f "certificates-${DOMAIN}.json"
 kubectl -n devops delete --all certificaterequests,certificates,challenges,orders
 ```
