@@ -31,7 +31,7 @@ fi
 # TAG is $(COMPONENT_VERSION) for release branches, or
 #        $(COMPONENT_VERSION)-$(GIT_BRANCH_ID).$(BUILD_NUMBER).$(GIT_HASH).$(GIT_STATUS) for non-release brances
 case "${GIT_BRANCH}" in
-  master|release*)
+  main|master|release*)
     RELEASE_BRANCH=1
     TAG="${COMPONENT_VERSION}"
     ;;

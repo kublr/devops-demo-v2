@@ -4,7 +4,21 @@
 
 * Kublr 1.20.1+
 * Kubernetes 1.19+
-* AWS account
+* AWS and/or Azure account
+
+You can follow this demo implementing steps manually based on the instructions below, or just by running
+the scripts in the `hacks/` directory. The script may also provide useful insight and code templates for
+your own automation implementations.
+
+The scripts are written in bash and assume that you have `kubectl`, `jq`, and `curl` tools available on the
+command path.
+
+They all also assume that they will be run via bash `source` command, e.g. `source devops-demo/hacks/00-prep-env.sh`
+or `. devops-demo/hacks/00-prep-env.sh`.
+
+If you are planning to use the scripts, run `. devops-demo/hacks/00-prep-env.sh` first.
+Check the script output for the instructions on adjusting it to your configuration, and re-run with correct
+parameters and environment variables set.
 
 ## 2. Deploy cluster
 
@@ -13,7 +27,7 @@ for the required changes in the specs) to deploy the environment in AWS `us-east
 region, and Azure `eastus` region.
 
 Use Kublr to deploy cluster using one of the specs in `deovops-env` directory -
-`kublr-cluster-us-east-1.yaml`, `kublr-cluster-us-east-2.yaml`, or `kublr-cluster-eastus.yaml`.
+`devops-demo-us-east-1.yaml`, `devops-demo-us-east-2.yaml`, or `devops-demo-eastus.yaml`.
 
 The first two specs are for clusters in AWS regions `us-east-1` and `us-east-2` correspondingly,
 and the third one is for a cluster in Azure `eastus` region:
@@ -30,56 +44,66 @@ This text refers to
 1. Start creating a new cluster in Kublr UI, click "Customize specification" and replace yaml in the dialog that
    opens with one of the providedspecifications.
 
+   You can use the provided scripts instead of copy-pasting the cluster spec in UI:
+
+   -  if creating a cluster name different from the three clusters provided in this project, put the cluster specification
+      in a file `devops-demo/devops-env/${KCP_CLUSTER}.yaml`
+
+   -  run `. devops-demo/hacks/11-create-kublr-cluster.sh`
+
+   -  after the cluster is created, download and configure the cluster kubeconfig file by running
+      `. devops-demo/hacks/15-load-kubeconfig-from-kublr.sh`
+
 ### 2.1. Required changes in the cluster specs
 
 You will need to use your own Route 53 domain and Letsencrypt identification for the demo to work correctly;
 they **MUST** be changed in the cluster spec to adjust to your environment.
 
 1. Change the email Letsencrypt identification in the spec line
-   [L168](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L168)
+   [L168](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L168)
 
 1. Change the cluster domain in the spec lines 
-   [L208](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L208),
-   [L210](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L210),
-   [L212](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L212),
-   [L225](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L225),
-   [L226](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L226),
-   [L232](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L232),
-   [L238](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L238).
+   [L208](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L208),
+   [L210](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L210),
+   [L212](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L212),
+   [L225](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L225),
+   [L226](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L226),
+   [L232](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L232),
+   [L238](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L238).
 
 ### 2.1. Optional changes
 
 Some of the other parameters that **MAY** be changed:
 
 1. If you want to use a different space in Kublr rather than `devops`, change the space in
-   [L4](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L4)
+   [L4](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L4)
 
 1. If you want to use a different AWS region and availability zones:
 
    1. Change the region in
-      [L10](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L10)
+      [L10](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L10)
 
    1. Change AZs in
-      [L14-L16](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L14-L16),
-      [L62-L64](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L62-L64),
-      [L97-L99](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L62-L64),
+      [L14-L16](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L14-L16),
+      [L62-L64](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L62-L64),
+      [L97-L99](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L62-L64),
 
    1. Change EFS Mount Targets in
-      [L21-L38](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L21-L38)
+      [L21-L38](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L21-L38)
 
       Here most importantly the designations of target subnets must be changed according to the AZs used.
 
       Kublr uses AZ numbering convention where AZs ending with `a` (e.g. `us-east-1a`) are numbered `0`, `b` - `1`, `c` - `2` etc.
       Therefore if you want to use, for example, AZs `us-west-2c`, `us-west-2d`, and `us-west-2f`, then the Mount Target
       names should be changed to `DevOpsDemoEFSMT2`, `DevOpsDemoEFSMT3` and `DevOpsDemoEFSMT5` in the spec lines
-      [L21](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L21),
-      [L27](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L27),
-      [L33](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L33)
+      [L21](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L21),
+      [L27](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L27),
+      [L33](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L33)
       correspondingly, and the subnet names should be `SubnetNodePublic2`, `SubnetNodePublic3`, and `SubnetNodePublic5`
       in the spec lines
-      [L26](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L26),
-      [L32](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L32),
-      [L38](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/kublr-cluster-us-east-1.yaml#L38)
+      [L26](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L26),
+      [L32](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L32),
+      [L38](https://github.com/kublr/devops-demo-v2/blob/main/devops-env/devops-demo-us-east-1.yaml#L38)
       correspondingly.
 
 Other possible variation points that you may or may not want to modify or experiment with:
@@ -115,10 +139,10 @@ Make sure that at least Nexus certificates are valid before procedeing to the ne
 After the cluster is started, Nexus and Jenkins helm packages will be deployed as they are included
 in the cluster specification.
 
-Certain additional setup and configuration is necessary for them to 
+At the same time both Nexus and Jenkins will be "bare" - with no repositories or build jobs. They need
+to be configuered to build the example project from this repository.
 
-
-### 4.1. Manual via UI
+### 4.1. Configuring Nexus manually via UI
 
 1. Open Nexus UI at https://nexus.devops-demo-us-east-1.workshop.kublr.com
 1. Login with the default nexus admin account `admin` / `admin123`
@@ -131,6 +155,16 @@ Certain additional setup and configuration is necessary for them to
       - Allow anonymous pull: yes
 
 ### 4.2. ... or Scripted via CLI
+
+You can either run pre-packaged scripts or follow the insctructions below step by step.
+
+Prepackaged scripts:
+
+```bash
+. devops-demo/hacks/21-setup-nexus.sh
+```
+
+Step by step instructions:
 
 1. Prepare environment for scripting:
 
@@ -204,15 +238,29 @@ docker rmi        registry.$DOMAIN/alpine/alpine
 docker pull       registry.$DOMAIN/alpine/alpine
 ```
 
+... or running a prepackaged script:
+
+```bash
+. devops-demo/hacks/25-test-docker-registry.sh
+```
+
 ## 5. Setting up Jenkins
 
-1. Use Kublr UI or Kubernetes CLI to assign `cluster-admin` Cluster Role to Jenkins service account and the default service
-   account in the `devops` namespace
+### 5.1. Get Jenkins password
 
-   ```
-   kubectl create clusterrolebinding cluster-admin:devops:jenkins --clusterrole=cluster-admin --serviceaccount=devops:jenkins
-   kubectl create clusterrolebinding cluster-admin:devops:default --clusterrole=cluster-admin --serviceaccount=devops:default
-   ```
+You can either run pre-packaged scripts or follow the insctructions below step by step.
+
+Prepackaged scripts:
+
+```bash
+# configure Jenkins scripted token and load Jenkins password
+. devops-demo/hacks/31-setup-jenkins-password.sh
+
+# Print Jenkins pasword
+cat jenkins-pwd-${DOMAIN}.sh
+```
+
+Step by step instructions:
 
 1. Prepare environment for follow-up scripts:
 
@@ -229,7 +277,15 @@ docker pull       registry.$DOMAIN/alpine/alpine
    echo $JPWD
    ```
 
-### 5.1. Configure Jenkins CI Job manually via UI
+### 5.2. Configure Jenkins CI Job manually via CLI and UI
+
+1. Use Kublr UI or Kubernetes CLI to assign `cluster-admin` Cluster Role to Jenkins service account and the default service
+   account in the `devops` namespace
+
+   ```
+   kubectl create clusterrolebinding cluster-admin:devops:jenkins --clusterrole=cluster-admin --serviceaccount=devops:jenkins
+   kubectl create clusterrolebinding cluster-admin:devops:default --clusterrole=cluster-admin --serviceaccount=devops:default
+   ```
 
 1. Open UI at https://jenkins.devops-demo-us-east-1.workshop.kublr.com
 
@@ -251,7 +307,25 @@ docker pull       registry.$DOMAIN/alpine/alpine
 
    - Set 'Scan Multibranch Pipeline Triggers' to periodic checking
 
-### 5.2. ... or configure Jenkins CI Job using scripts via Jenkins API
+### 5.3. ... or configure Jenkins CI Job using scripts via Jenkins API
+
+You can either run pre-packaged scripts or follow the insctructions below step by step.
+
+Prepackaged scripts:
+
+```bash
+. devops-demo/hacks/35-setup-jenkins.sh
+```
+
+Step by step instructions:
+
+1. Use Kublr UI or Kubernetes CLI to assign `cluster-admin` Cluster Role to Jenkins service account and the default service
+   account in the `devops` namespace
+
+   ```
+   kubectl create clusterrolebinding cluster-admin:devops:jenkins --clusterrole=cluster-admin --serviceaccount=devops:jenkins
+   kubectl create clusterrolebinding cluster-admin:devops:default --clusterrole=cluster-admin --serviceaccount=devops:default
+   ```
 
 1. Generate Jenkins token for scripting:
 
@@ -405,6 +479,12 @@ kubectl get secrets -n devops --field-selector type=kubernetes.io/tls -o json | 
   del(.items[].metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"])' > "certificates-${DOMAIN}.json"
 ```
 
+or run the script:
+
+```bash
+. devops-demo/hacks/99-save-tls-certs.sh
+```
+
 It is recommended to cleanup the output certificates backup file removing unnecessary fields from the exported secrets,
 such as `metadata.managedFields`, `metadata.resourceVersion`, `metadata.selfLink`, `metadata.uid`, `metadata.creationTimestamp`
 (it is done with `jq` processing in the script above).
@@ -414,4 +494,10 @@ Importing the backed-up certificates:
 ```bash
 kubectl apply -f "certificates-${DOMAIN}.json"
 kubectl -n devops delete --all certificaterequests,certificates,challenges,orders
+```
+
+or run the script:
+
+```bash
+. devops-demo/hacks/17-load-saved-tls-certs-to-cluster.sh
 ```

@@ -3,6 +3,19 @@
 kubectl create clusterrolebinding cluster-admin:devops:jenkins --clusterrole=cluster-admin --serviceaccount=devops:jenkins
 kubectl create clusterrolebinding cluster-admin:devops:default --clusterrole=cluster-admin --serviceaccount=devops:default
 
+# Create a token for Jenkins API scription
+
+JCRUMB=$(curl --silent --show-error --fail -X GET  -c cookies.txt -u "admin:$JPWD" \
+    $JURL/crumbIssuer/api/json | jq -r .crumb)
+
+JTOKEN=$(curl --silent --show-error --fail -X POST -b cookies.txt -u "admin:$JPWD" \
+    -H "Jenkins-Crumb: $JCRUMB" \
+    $JURL/me/descriptorByName/jenkins.security.ApiTokenProperty/generateNewToken?newTokenName=\devops-demo | jq -r .data.tokenValue)
+
+# Save the token in a file
+
+echo "JTOKEN='${JTOKEN}'" > jenkins-token-${DOMAIN}.sh
+
 # delete creds
 
 curl -X DELETE -H 'content-type:application/xml' -u "admin:$JTOKEN" -w '\n%{http_code}\n' \

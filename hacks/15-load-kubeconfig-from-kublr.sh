@@ -1,14 +1,5 @@
 #!/bin/sh
 
-KCP_USERNAME="${KCP_USERNAME:-"admin"}"
- KCP_PASSWORD="${KCP_PASSWORD:-"password"}"
-KCP_URL="${KCP_URL:-"https://kcp.example.com"}"
-
-KCP_SPACE="devops"
-KCP_CLUSTER="${1:-"devops-demo-us-east-1"}"
-
-echo "KCP_CLUSTER=${KCP_CLUSTER}"
-
 # Authenticate with Kublr Control Plane
 
 eval "$(curl -s \
@@ -22,9 +13,13 @@ eval "$(curl -s \
 
 # Download Kubernetes kubeconfig file
 
-curl -k -s -XGET -H "Authorization: Bearer ${TOKEN}" \
+if ! curl -ksSf -XGET -H "Authorization: Bearer ${TOKEN}" \
   "${KCP_URL}/api/spaces/${KCP_SPACE}/cluster/${KCP_CLUSTER}/admin-config" > \
-  "config-${KCP_CLUSTER}.yaml"
+  "tmp-config-${KCP_CLUSTER}.yaml" ; then
+  return 1
+fi
+
+mv -f "tmp-config-${KCP_CLUSTER}.yaml" "config-${KCP_CLUSTER}.yaml"
 
 export KUBECONFIG="$(pwd)/config-${KCP_CLUSTER}.yaml"
 
